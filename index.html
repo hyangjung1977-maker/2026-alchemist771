@@ -1,869 +1,1028 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>섬광 포토그래퍼</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>나의 메모장 (클라우드 동기화)</title>
+
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;700&display=swap');
-
-  :root {
-    --black: #080808;
-    --white: #f5f0e8;
-    --red: #ff2b2b;
-    --amber: #ffaa00;
-    --gray: #1a1a1a;
-    --mid: #333;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--black);
-    color: var(--white);
-    font-family: 'Noto Sans KR', sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* GRAIN OVERLAY */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.35;
-  }
-
-  .app {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 40px 24px 80px;
-  }
-
-  /* HEADER */
-  header {
-    text-align: center;
-    margin-bottom: 56px;
-  }
-
-  .logo {
-    font-family: 'Bebas Neue', cursive;
-    font-size: clamp(48px, 10vw, 96px);
-    letter-spacing: 0.08em;
-    line-height: 0.9;
-    color: var(--white);
-    position: relative;
-    display: inline-block;
-  }
-
-  .logo span {
-    color: var(--red);
-  }
-
-  .logo::after {
-    content: 'STROBOSCOPIC';
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    color: var(--amber);
-    opacity: 0.15;
-    z-index: -1;
-  }
-
-  .tagline {
-    font-size: 13px;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: #666;
-    margin-top: 12px;
-    font-weight: 300;
-  }
-
-  /* VIEWFINDER */
-  .viewfinder-wrap {
-    position: relative;
-    background: #0d0d0d;
-    border: 1px solid #222;
-    overflow: hidden;
-    aspect-ratio: 16/9;
-    margin-bottom: 32px;
-  }
-
-  .viewfinder-wrap::before,
-  .viewfinder-wrap::after {
-    content: '';
-    position: absolute;
-    width: 24px;
-    height: 24px;
-    z-index: 10;
-  }
-  .viewfinder-wrap::before { top: 12px; left: 12px; border-top: 2px solid var(--amber); border-left: 2px solid var(--amber); }
-  .viewfinder-wrap::after { bottom: 12px; right: 12px; border-bottom: 2px solid var(--amber); border-right: 2px solid var(--amber); }
-
-  #video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .result-canvas-wrap {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    inset: 0;
-    display: none;
-  }
-
-  #resultCanvas {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-
-  /* HUD */
-  .hud {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 5;
-  }
-
-  .hud-top {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
-
-  .hud-label {
-    font-family: 'Bebas Neue', cursive;
-    font-size: 13px;
-    letter-spacing: 0.15em;
-    color: #555;
-  }
-
-  .rec-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--red);
-    opacity: 0;
-  }
-
-  .rec-dot.active {
-    opacity: 1;
-    animation: blink 0.5s step-end infinite;
-  }
-
-  @keyframes blink { 50% { opacity: 0; } }
-
-  .hud-bottom {
-    position: absolute;
-    bottom: 16px;
-    left: 16px;
-    right: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-  }
-
-  .frame-counter {
-    font-family: 'Bebas Neue', cursive;
-    font-size: 32px;
-    color: var(--white);
-    line-height: 1;
-    opacity: 0.9;
-  }
-
-  .frame-counter small {
-    font-size: 13px;
-    color: #555;
-    display: block;
-    letter-spacing: 0.1em;
-  }
-
-  /* COUNTDOWN */
-  .countdown-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0,0,0,0.6);
-    z-index: 20;
-    display: none;
-  }
-
-  .countdown-number {
-    font-family: 'Bebas Neue', cursive;
-    font-size: 200px;
-    color: var(--white);
-    line-height: 1;
-    animation: countPop 0.8s ease-out forwards;
-  }
-
-  @keyframes countPop {
-    0% { transform: scale(1.5); opacity: 0; }
-    30% { transform: scale(1); opacity: 1; }
-    80% { opacity: 1; }
-    100% { opacity: 0; }
-  }
-
-  /* FLASH EFFECT */
-  .flash-overlay {
-    position: absolute;
-    inset: 0;
-    background: white;
-    opacity: 0;
-    z-index: 15;
-    pointer-events: none;
-    transition: opacity 0.05s;
-  }
-
-  .flash-overlay.flash {
-    opacity: 0.7;
-    transition: opacity 0.03s;
-  }
-
-  /* PROGRESS */
-  .progress-track {
-    height: 2px;
-    background: #1a1a1a;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: var(--red);
-    width: 0%;
-    transition: width 0.1s linear;
-    box-shadow: 0 0 8px var(--red);
-  }
-
-  /* CONTROLS */
-  .controls {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 16px;
-    align-items: center;
-    margin-bottom: 32px;
-  }
-
-  .settings-col {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .setting-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .setting-row label {
-    font-size: 10px;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: #555;
-  }
-
-  .setting-row select,
-  .setting-row input[type="range"] {
-    background: var(--gray);
-    border: 1px solid #2a2a2a;
-    color: var(--white);
-    padding: 8px 12px;
-    font-size: 13px;
-    font-family: 'Noto Sans KR', sans-serif;
-    cursor: pointer;
-    appearance: none;
-    -webkit-appearance: none;
-  }
-
-  .setting-row select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23666' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
-    padding-right: 32px;
-  }
-
-  .slider-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .slider-row input[type="range"] {
-    flex: 1;
-    padding: 0;
-    height: 2px;
-    -webkit-appearance: none;
-    background: #333;
-    border: none;
-    cursor: pointer;
-  }
-
-  .slider-row input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    background: var(--white);
-    border-radius: 50%;
-    cursor: pointer;
-  }
-
-  .slider-val {
-    font-family: 'Bebas Neue', cursive;
-    font-size: 18px;
-    color: var(--amber);
-    min-width: 40px;
-    text-align: right;
-  }
-
-  /* SHUTTER BUTTON */
-  .shutter-col {
-    display: flex;
-    justify-content: center;
-  }
-
-  .shutter-btn {
-    width: 88px;
-    height: 88px;
-    border-radius: 50%;
-    background: none;
-    border: 3px solid var(--white);
-    cursor: pointer;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.15s, border-color 0.15s;
-  }
-
-  .shutter-btn:hover:not(:disabled) {
-    border-color: var(--red);
-    transform: scale(1.05);
-  }
-
-  .shutter-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .shutter-btn::before {
-    content: '';
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background: var(--white);
-    transition: background 0.15s, transform 0.15s;
-  }
-
-  .shutter-btn:hover:not(:disabled)::before {
-    background: var(--red);
-    transform: scale(0.92);
-  }
-
-  .shutter-btn.recording::before {
-    background: var(--red);
-    animation: pulse 0.5s ease-in-out infinite alternate;
-  }
-
-  @keyframes pulse { to { transform: scale(0.85); } }
-
-  .shutter-label {
-    position: absolute;
-    bottom: -24px;
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: #555;
-    white-space: nowrap;
-  }
-
-  /* START CAMERA */
-  .start-section {
-    text-align: center;
-    padding: 60px 20px;
-  }
-
-  .btn-start {
-    background: var(--white);
-    color: var(--black);
-    border: none;
-    padding: 18px 48px;
-    font-family: 'Bebas Neue', cursive;
-    font-size: 20px;
-    letter-spacing: 0.2em;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-  }
-
-  .btn-start:hover {
-    background: var(--amber);
-    transform: translateY(-2px);
-  }
-
-  /* DOWNLOAD */
-  .download-section {
-    display: none;
-    text-align: center;
-    margin-top: 8px;
-    gap: 12px;
-    justify-content: center;
-  }
-
-  .btn-dl {
-    background: none;
-    border: 1px solid var(--white);
-    color: var(--white);
-    padding: 12px 32px;
-    font-family: 'Bebas Neue', cursive;
-    font-size: 16px;
-    letter-spacing: 0.2em;
-    cursor: pointer;
-    transition: background 0.2s, color 0.2s;
-  }
-
-  .btn-dl:hover { background: var(--white); color: var(--black); }
-
-  .btn-dl.secondary {
-    border-color: #444;
-    color: #666;
-  }
-
-  .btn-dl.secondary:hover {
-    background: #444;
-    color: var(--white);
-  }
-
-  /* STATUS */
-  .status-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 0;
-    border-top: 1px solid #1a1a1a;
-    margin-top: 24px;
-  }
-
-  .status-text {
-    font-size: 11px;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: #444;
-  }
-
-  .status-text.active {
-    color: var(--amber);
-  }
-
-  /* FRAMES STRIP */
-  .frames-strip {
-    display: none;
-    gap: 4px;
-    overflow-x: auto;
-    padding: 16px 0;
-    margin-top: 8px;
-    scrollbar-width: thin;
-    scrollbar-color: #333 transparent;
-  }
-
-  .frames-strip canvas {
-    width: 80px;
-    height: 45px;
-    object-fit: cover;
-    flex-shrink: 0;
-    opacity: 0.7;
-    border: 1px solid #222;
-    transition: opacity 0.2s;
-    cursor: pointer;
-  }
-
-  .frames-strip canvas:hover {
-    opacity: 1;
-    border-color: var(--amber);
-  }
-
-  .section-label {
-    font-size: 10px;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: #444;
-    margin-bottom: 4px;
-  }
-
-  /* RESPONSIVE */
-  @media (max-width: 600px) {
-    .controls {
-      grid-template-columns: 1fr;
-      grid-template-rows: auto auto auto;
-    }
-    .shutter-col { order: -1; }
-  }
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root {
+  --bg:#f5f7fb; --surface:#ffffff; --surface2:#f2f4f8; --panel:#ffffff;
+  --border:#e4e8f0; --border2:#d6dbe6;
+  --text:#1a1f2b; --text2:#5b6577; --text3:#8a94a6;
+  --accent:#d4941e; --accent2:#f0b340; --accent-bg:rgba(212,148,30,0.12);
+  --red:#c0443a; --red-bg:rgba(192,68,58,0.12);
+  --green:#2f8f5b; --green-bg:rgba(47,143,91,0.12);
+  --radius:14px; --shadow:0 8px 26px rgba(20,35,60,0.12);
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;overflow-x:hidden;}
+@media print{
+  body{background:#fff !important;}
+  .app{display:block !important;height:auto !important;}
+  .cal-panel{display:none !important;}
+  .memo-panel{transform:none !important;}
+  .close-btn,.print-btn,.theme-btn{display:none !important;}
+  .task-del,.task-star,.task-check{display:none !important;}
+  .task-item{border:1px solid #ddd !important;}
+  .toast,.modal,.modal-backdrop{display:none !important;}
+}
+.app{display:flex;height:100vh;overflow:hidden;}
+.cal-panel{
+  width:420px;min-width:340px;flex-shrink:0;display:flex;flex-direction:column;
+  background:var(--surface);border-right:1px solid var(--border);
+  padding:32px 28px 24px;overflow-y:auto;
+}
+.app-title{
+  font-family:'Playfair Display',serif;font-size:1.5rem;color:var(--accent2);
+  letter-spacing:0.01em;margin-bottom:18px;display:flex;align-items:baseline;gap:10px;justify-content:space-between;
+}
+.title-left{display:flex;align-items:baseline;gap:10px;}
+.app-title span{
+  font-family:'Noto Sans KR',sans-serif;font-size:0.7rem;font-weight:500;color:var(--text3);
+  letter-spacing:0.1em;text-transform:uppercase;
+}
+.auth-chip{
+  display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);
+  border-radius:999px;padding:6px 10px;box-shadow:var(--shadow);max-width:260px;
+}
+.theme-btn{
+  width:28px;height:28px;border:1px solid var(--border2);background:transparent;border-radius:10px;
+  cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;
+}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent);}
+.auth-chip .who{
+  font-size:0.72rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;
+}
+.auth-chip button#btn-auth{
+  border:1px solid var(--border2);background:transparent;color:var(--text2);border-radius:10px;
+  padding:4px 10px;cursor:pointer;font-size:0.72rem;transition:all .15s;
+}
+.auth-chip button#btn-auth:hover{border-color:var(--accent);color:var(--accent);}
+.month-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;}
+.month-title{font-family:'Playfair Display',serif;font-size:1.25rem;font-style:italic;color:var(--text);}
+.month-btn{
+  width:32px;height:32px;border:1px solid var(--border2);background:transparent;border-radius:8px;
+  color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.month-btn:hover{border-color:var(--accent);color:var(--accent);}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:6px;}
+.cal-head-cell{
+  text-align:center;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--text3);padding:6px 0;
+}
+.cal-head-cell:first-child{color:#c06060;}
+.cal-head-cell:last-child{color:#6080c0;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+.cal-cell{
+  aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s;border:1.5px solid transparent;gap:2px;
+}
+.cal-cell:hover{background:var(--accent-bg);border-color:var(--accent);}
+.cal-cell.empty{cursor:default;pointer-events:none;}
+.cal-cell.other-month .cal-num{color:var(--text3);}
+.cal-cell.today{border-color:var(--accent);}
+.cal-cell.today .cal-num{color:var(--accent2);font-weight:900;}
+.cal-cell.selected{background:var(--accent);border-color:var(--accent);}
+.cal-cell.selected .cal-num{color:#fff;font-weight:900;}
+.cal-cell.selected .cal-dot{background:#fff;}
+.cal-cell.sun .cal-num{color:#c07070;}
+.cal-cell.sat .cal-num{color:#7090c0;}
+.cal-num{font-size:0.82rem;font-weight:700;color:var(--text);line-height:1;}
+.cal-dot{width:4px;height:4px;border-radius:50%;background:var(--accent);}
+.cal-legend{
+  margin-top:24px;padding-top:20px;border-top:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap;
+}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.72rem;color:var(--text2);}
+.legend-dot{width:8px;height:8px;border-radius:2px;}
+
+.memo-panel{
+  flex:1;display:flex;flex-direction:column;background:var(--panel);
+  transform:translateX(100%);transition:transform .35s cubic-bezier(0.25,0.8,0.25,1);overflow:hidden;
+}
+.memo-panel.open{transform:translateX(0);}
+.memo-header{
+  padding:28px 32px 20px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:16px;flex-shrink:0;
+}
+.memo-date-block{
+  background:var(--accent);color:#fff;border-radius:12px;width:52px;height:56px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;
+}
+.memo-date-day{font-size:0.6rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;}
+.memo-date-num{font-size:1.5rem;font-weight:900;line-height:1;}
+.memo-date-info{flex:1;}
+.memo-date-full{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--text);}
+.memo-date-stats{margin-top:4px;font-size:0.72rem;color:var(--text2);display:flex;gap:12px;}
+.stat-badge{display:inline-flex;align-items:center;gap:4px;}
+.header-actions{display:flex;gap:8px;align-items:center;}
+.print-btn,.close-btn{
+  width:32px;height:32px;border:1px solid var(--border2);background:transparent;border-radius:8px;color:var(--text2);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;
+}
+.print-btn:hover{border-color:var(--accent);color:var(--accent);}
+.close-btn:hover{border-color:var(--red);color:var(--red);}
+
+.add-form{
+  padding:18px 32px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:10px;
+}
+.form-row{display:flex;gap:8px;align-items:center;}
+.time-input,.task-input{
+  border:1.5px solid var(--border2);background:var(--surface2);border-radius:8px;padding:8px 10px;
+  font-family:'Noto Sans KR',sans-serif;outline:none;transition:border-color .15s;
+}
+.time-input{font-size:.85rem;color:var(--text);width:90px;}
+.task-input{flex:1;font-size:.88rem;color:var(--text);padding:8px 12px;}
+.time-input:focus,.task-input:focus{border-color:var(--accent);}
+.task-input::placeholder,.time-input::placeholder{color:var(--text3);}
+.flag-row{display:flex;gap:8px;align-items:center;}
+.flag-btn{
+  border:1.5px solid var(--border2);background:transparent;border-radius:8px;padding:6px 14px;font-size:.76rem;
+  color:var(--text2);cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;
+}
+.flag-btn.important-flag.active{border-color:var(--accent);color:var(--accent);background:var(--accent-bg);}
+.flag-btn:not(.active):hover{border-color:var(--border2);color:var(--text);}
+.add-task-btn{
+  margin-left:auto;background:var(--accent);color:#fff;border:none;border-radius:9px;padding:8px 20px;
+  font-size:.82rem;font-weight:900;cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.add-task-btn:hover{filter:brightness(1.05);transform:translateY(-1px);}
+.add-task-btn:active{transform:translateY(0);}
+
+.task-list{flex:1;overflow-y:auto;padding:16px 32px 32px;display:flex;flex-direction:column;}
+.task-list::-webkit-scrollbar{width:4px;}
+.task-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.time-group{margin-bottom:4px;}
+.time-group-label{
+  font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);
+  padding:10px 0 4px;display:flex;align-items:center;gap:8px;
+}
+.time-group-label::after{content:'';flex:1;height:1px;background:var(--border);}
+.task-item{
+  display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;border:1.5px solid transparent;
+  transition:all .15s;position:relative;margin-bottom:2px;animation:fadeUp .22s ease;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.task-item:hover{background:var(--surface2);border-color:var(--border);}
+.task-item.done{opacity:.6;}
+.task-item.important:not(.done){background:var(--accent-bg);border-color:rgba(0,0,0,0.06);}
+.task-check{
+  width:20px;height:20px;border:2px solid var(--border2);border-radius:6px;flex-shrink:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;margin-top:1px;user-select:none;
+}
+.task-check:hover{border-color:var(--green);}
+.task-item.done .task-check{background:var(--green);border-color:var(--green);color:#fff;}
+.task-star{
+  width:20px;height:20px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;color:var(--text3);transition:all .15s;margin-top:1px;user-select:none;
+}
+.task-star:hover{color:var(--accent);}
+.task-item.important .task-star{color:var(--accent);}
+.task-body{flex:1;min-width:0;}
+.task-time-tag{font-size:.68rem;color:var(--text3);margin-bottom:2px;}
+.task-text{font-size:.9rem;color:var(--text);line-height:1.5;word-break:break-word;}
+.task-item.done .task-text{text-decoration:line-through;color:var(--text3);}
+.task-del{
+  width:22px;height:22px;border:none;background:transparent;color:var(--text3);cursor:pointer;border-radius:5px;
+  font-size:.85rem;display:flex;align-items:center;justify-content:center;opacity:0;transition:all .15s;
+}
+.task-item:hover .task-del{opacity:1;}
+.task-del:hover{color:var(--red);background:var(--red-bg);}
+.empty-tasks{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:40px 0;color:var(--text3);
+}
+.empty-tasks .icon{font-size:2.2rem;opacity:.55;}
+.empty-tasks p{font-size:.85rem;}
+.no-date{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--text3);
+  padding:40px;text-align:center;
+}
+.no-date .icon{font-size:3rem;opacity:.35;}
+.no-date h2{font-family:'Playfair Display',serif;font-style:italic;font-size:1.4rem;color:var(--text2);}
+.no-date p{font-size:.85rem;line-height:1.8;}
+.notes-area{padding:0 32px 16px;border-top:1px solid var(--border);padding-top:14px;}
+.notes-label{font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;font-weight:800;}
+.notes-input{
+  width:100%;border:1.5px solid var(--border);background:var(--surface2);border-radius:10px;padding:10px 12px;
+  font-size:.84rem;color:var(--text);resize:none;outline:none;line-height:1.7;min-height:70px;
+}
+.notes-input:focus{border-color:var(--accent);}
+.notes-input::placeholder{color:var(--text3);}
+.save-indicator{padding:8px 32px;font-size:.72rem;color:var(--text3);font-style:italic;height:30px;}
+
+.toast{
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);
+  background:rgba(255,255,255,0.92);border:1px solid var(--border);color:var(--text2);
+  padding:10px 14px;border-radius:999px;display:none;gap:10px;align-items:center;z-index:9999;
+  box-shadow:var(--shadow);backdrop-filter:blur(10px);
+}
+.toast.show{display:flex;}
+.toast .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+.toast .msg{font-size:.82rem;}
+.toast .ok{
+  border:1px solid var(--border2);background:transparent;color:var(--text2);border-radius:999px;
+  padding:4px 10px;cursor:pointer;font-size:.75rem;
+}
+.toast .ok:hover{border-color:var(--accent);color:var(--accent);}
+
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:none;z-index:9998;}
+.modal-backdrop.show{display:block;}
+.modal{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(520px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,0.25);padding:18px 18px 14px;display:none;z-index:9999;
+}
+.modal.show{display:block;}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:12px;}
+.modal-title{font-weight:900;color:var(--text);}
+.modal-close{
+  width:32px;height:32px;border-radius:10px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;
+}
+.modal-close:hover{border-color:var(--red);color:var(--red);}
+.preset-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+.preset{border:1px solid var(--border2);border-radius:12px;padding:10px;cursor:pointer;background:var(--surface2);min-width:120px;flex:1;}
+.preset .name{font-size:.8rem;font-weight:900;margin-bottom:8px;}
+.preset .chips{display:flex;gap:6px;}
+.chip{width:16px;height:16px;border-radius:6px;border:1px solid rgba(0,0,0,0.08);}
+.ctrls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.ctrl{border:1px solid var(--border);background:var(--surface2);border-radius:12px;padding:10px;}
+.ctrl label{display:block;font-size:.72rem;color:var(--text2);margin-bottom:6px;font-weight:800;}
+.ctrl input[type="color"]{width:100%;height:38px;border:none;background:transparent;padding:0;cursor:pointer;}
+.ctrl input[type="range"]{width:100%;}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--border);}
+.btn{
+  border:1px solid var(--border2);background:transparent;color:var(--text2);border-radius:10px;padding:8px 12px;
+  cursor:pointer;font-weight:900;font-size:.82rem;
+}
+.btn.primary{background:var(--accent);color:#fff;border-color:transparent;}
+.btn:hover{border-color:var(--accent);color:var(--accent);}
+.btn.primary:hover{filter:brightness(1.05);color:#fff;}
+
+@media (max-width:720px){
+  .app{flex-direction:column;height:auto;overflow:auto;}
+  .cal-panel{width:100%;min-width:unset;border-right:none;border-bottom:1px solid var(--border);padding:24px 16px 20px;}
+  .memo-panel{transform:none;min-height:60vh;}
+  .memo-panel:not(.open){display:none;}
+  .task-list,.add-form,.memo-header,.notes-area{padding-left:16px;padding-right:16px;}
+  .app-title{flex-direction:column;align-items:flex-start;gap:10px;}
+  .auth-chip{max-width:100%;}
+  .ctrls{grid-template-columns:1fr;}
+}
 </style>
 </head>
+
 <body>
+<div class="toast" id="toast">
+  <div class="dot"></div>
+  <div class="msg" id="toast-msg">메시지</div>
+  <button class="ok" onclick="hideToast()">확인</button>
+</div>
 
-<div class="app">
-  <header>
-    <div class="logo">STRO<span>B</span>O<br>SHOT</div>
-    <p class="tagline">5초 · 50프레임 · 다중 섬광 사진</p>
-  </header>
+<div class="modal-backdrop" id="theme-backdrop" onclick="closeTheme()"></div>
+<div class="modal" id="theme-modal" role="dialog" aria-modal="true">
+  <div class="modal-head">
+    <div class="modal-title">🎨 색상/밝기 설정</div>
+    <button class="modal-close" onclick="closeTheme()">✕</button>
+  </div>
 
-  <!-- VIEWFINDER -->
-  <div class="viewfinder-wrap" id="viewfinderWrap">
-    <video id="video" autoplay playsinline muted></video>
+  <div class="preset-row" id="preset-row"></div>
 
-    <div class="result-canvas-wrap" id="resultWrap">
-      <canvas id="resultCanvas"></canvas>
+  <div class="ctrls">
+    <div class="ctrl">
+      <label>포인트 색상</label>
+      <input type="color" id="pick-accent" />
     </div>
-
-    <div class="hud">
-      <div class="hud-top">
-        <span class="hud-label" id="hudLabel">STANDBY</span>
-        <div class="rec-dot" id="recDot"></div>
-      </div>
-      <div class="hud-bottom">
-        <div class="frame-counter">
-          <span id="frameNum">00</span>/<span id="frameTotal">50</span>
-          <small>FRAMES</small>
-        </div>
-        <div class="hud-label" id="timeLabel">5.0s</div>
-      </div>
+    <div class="ctrl">
+      <label>배경 밝기</label>
+      <input type="range" id="pick-bright" min="0" max="100" value="70" />
     </div>
-
-    <div class="countdown-overlay" id="countdownOverlay">
-      <div class="countdown-number" id="countdownNum">3</div>
+    <div class="ctrl">
+      <label>텍스트 색상</label>
+      <input type="color" id="pick-text" />
     </div>
-
-    <div class="flash-overlay" id="flashOverlay"></div>
-
-    <!-- START PROMPT -->
-    <div class="start-section" id="startSection" style="position:absolute;inset:0;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;gap:16px;align-items:center;justify-content:center;z-index:30;">
-      <p style="font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:#666;">카메라 접근 권한이 필요합니다</p>
-      <button class="btn-start" id="startBtn">카메라 시작</button>
+    <div class="ctrl">
+      <label>패널 색상</label>
+      <input type="color" id="pick-surface" />
     </div>
   </div>
 
-  <div class="progress-track">
-    <div class="progress-fill" id="progressFill"></div>
-  </div>
-
-  <!-- CONTROLS -->
-  <div class="controls" id="controlsArea" style="margin-top:24px;">
-    <div class="settings-col">
-      <div class="setting-row">
-        <label>합성 모드</label>
-        <select id="blendMode">
-          <option value="lighten">밝게 (Lighten)</option>
-          <option value="screen">스크린 (Screen)</option>
-          <option value="overlay">오버레이 (Overlay)</option>
-          <option value="difference">차이 (Difference)</option>
-          <option value="normal">일반 (Normal)</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="shutter-col">
-      <div style="position:relative;">
-        <button class="shutter-btn" id="shutterBtn" disabled>
-          <span class="shutter-label">촬영</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="settings-col" style="align-items:flex-end;">
-      <div class="setting-row" style="width:100%;">
-        <label>불투명도</label>
-        <div class="slider-row">
-          <input type="range" id="opacitySlider" min="10" max="100" value="60" step="5">
-          <span class="slider-val" id="opacityVal">60%</span>
-        </div>
-      </div>
-      <div class="setting-row" style="width:100%;">
-        <label>프레임 수</label>
-        <div class="slider-row">
-          <input type="range" id="frameSlider" min="10" max="60" value="50" step="5">
-          <span class="slider-val" id="frameVal">50</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="download-section" id="downloadSection">
-    <button class="btn-dl" id="downloadBtn">💾 이미지 저장</button>
-    <button class="btn-dl secondary" id="retakeBtn">↺ 다시 찍기</button>
-  </div>
-
-  <div class="status-bar">
-    <span class="status-text" id="statusText">카메라를 시작하세요</span>
-    <span class="status-text" id="statusRight"></span>
-  </div>
-
-  <!-- FRAMES STRIP -->
-  <div id="framesStripWrap" style="display:none;">
-    <p class="section-label">추출된 프레임</p>
-    <div class="frames-strip" id="framesStrip"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="resetTheme()">초기화</button>
+    <button class="btn" onclick="saveTheme(true)">저장(계정)</button>
+    <button class="btn primary" onclick="saveTheme(false)">저장</button>
   </div>
 </div>
 
-<!-- HIDDEN CANVAS -->
-<canvas id="hiddenCanvas" style="display:none;"></canvas>
+<div class="app">
+  <div class="cal-panel">
+    <div class="app-title">
+      <div class="title-left">
+        나의 메모장
+        <span>Daily Planner</span>
+      </div>
 
-<script>
-const video = document.getElementById('video');
-const resultCanvas = document.getElementById('resultCanvas');
-const hiddenCanvas = document.getElementById('hiddenCanvas');
-const resultWrap = document.getElementById('resultWrap');
-const startBtn = document.getElementById('startBtn');
-const startSection = document.getElementById('startSection');
-const shutterBtn = document.getElementById('shutterBtn');
-const progressFill = document.getElementById('progressFill');
-const flashOverlay = document.getElementById('flashOverlay');
-const countdownOverlay = document.getElementById('countdownOverlay');
-const countdownNum = document.getElementById('countdownNum');
-const recDot = document.getElementById('recDot');
-const hudLabel = document.getElementById('hudLabel');
-const frameNum = document.getElementById('frameNum');
-const frameTotal = document.getElementById('frameTotal');
-const timeLabel = document.getElementById('timeLabel');
-const statusText = document.getElementById('statusText');
-const statusRight = document.getElementById('statusRight');
-const downloadSection = document.getElementById('downloadSection');
-const downloadBtn = document.getElementById('downloadBtn');
-const retakeBtn = document.getElementById('retakeBtn');
-const blendMode = document.getElementById('blendMode');
-const opacitySlider = document.getElementById('opacitySlider');
-const opacityVal = document.getElementById('opacityVal');
-const frameSlider = document.getElementById('frameSlider');
-const frameVal = document.getElementById('frameVal');
-const framesStrip = document.getElementById('framesStrip');
-const framesStripWrap = document.getElementById('framesStripWrap');
+      <div class="auth-chip">
+        <button class="theme-btn" title="색상 설정" onclick="openTheme()">🎨</button>
+        <div class="who" id="who">로그인 필요</div>
+        <button id="btn-auth" onclick="handleAuth()">로그인</button>
+      </div>
+    </div>
 
-let stream = null;
-let isRecording = false;
-let capturedFrames = [];
+    <div class="month-nav">
+      <button class="month-btn" onclick="changeMonth(-1)">◀</button>
+      <div class="month-title" id="month-title"></div>
+      <button class="month-btn" onclick="changeMonth(1)">▶</button>
+    </div>
 
-opacitySlider.addEventListener('input', () => {
-  opacityVal.textContent = opacitySlider.value + '%';
-});
+    <div class="cal-head">
+      <div class="cal-head-cell">일</div><div class="cal-head-cell">월</div><div class="cal-head-cell">화</div>
+      <div class="cal-head-cell">수</div><div class="cal-head-cell">목</div><div class="cal-head-cell">금</div>
+      <div class="cal-head-cell">토</div>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
 
-frameSlider.addEventListener('input', () => {
-  frameVal.textContent = frameSlider.value;
-  frameTotal.textContent = frameSlider.value;
-});
+    <div class="cal-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> 기록 있는 날</div>
+      <div class="legend-item"><div class="legend-dot" style="border:2px solid var(--accent);background:transparent"></div> 오늘</div>
+    </div>
+  </div>
 
-startBtn.addEventListener('click', async () => {
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
+  <div class="memo-panel" id="memo-panel">
+    <div class="no-date" id="no-date-msg">
+      <div class="icon">📅</div>
+      <h2>날짜를 선택하세요</h2>
+      <p>왼쪽 달력에서 날짜를 클릭하면<br>할 일과 메모를 작성할 수 있습니다.</p>
+      <p style="margin-top:10px;font-size:0.78rem;color:var(--text3);line-height:1.7;">
+        ※ 로그인하면 어떤 기기에서도 기록이 이어집니다.
+      </p>
+    </div>
+
+    <div id="memo-content" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="memo-header">
+        <div class="memo-date-block">
+          <div class="memo-date-day" id="hdr-day"></div>
+          <div class="memo-date-num" id="hdr-num"></div>
+        </div>
+        <div class="memo-date-info">
+          <div class="memo-date-full" id="hdr-full"></div>
+          <div class="memo-date-stats" id="hdr-stats"></div>
+        </div>
+
+        <div class="header-actions">
+          <button class="print-btn" title="선택일 인쇄" onclick="printDay()">🖨</button>
+          <button class="close-btn" title="닫기" onclick="closePanel()">✕</button>
+        </div>
+      </div>
+
+      <div class="add-form">
+        <div class="form-row">
+          <input type="time" class="time-input" id="inp-time" />
+          <input type="text" class="task-input" id="inp-task" placeholder="할 일을 입력하세요..." />
+        </div>
+        <div class="flag-row">
+          <button class="flag-btn important-flag" id="flag-important" onclick="toggleFlag('important')">⭐ 중요</button>
+          <button class="add-task-btn" onclick="addTask()">+ 추가</button>
+        </div>
+      </div>
+
+      <div class="task-list" id="task-list"></div>
+
+      <div class="notes-area">
+        <div class="notes-label">📝 메모</div>
+        <textarea class="notes-input" id="notes-input" placeholder="자유롭게 메모하세요..." rows="3"></textarea>
+      </div>
+
+      <div class="save-indicator" id="save-ind"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  // =========================
+  // Firebase 설정 (본인 값 유지)
+  // =========================
+  const firebaseConfig = {
+    apiKey: "AIzaSyC7WioYdpqU7Fmnkxf2IOPzLTtukgG0HPs",
+    authDomain: "carbide-algebra-423504-r3.firebaseapp.com",
+    projectId: "carbide-algebra-423504-r3",
+    storageBucket: "carbide-algebra-423504-r3.firebasestorage.app",
+    messagingSenderId: "753873202243",
+    appId: "1:753873202243:web:20b920fe0e0d3f6be3b8f6",
+    measurementId: "G-EBS38GS8DZ"
+  };
+
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import {
+    getAuth, GoogleAuthProvider,
+    signInWithRedirect, getRedirectResult,
+    signOut, onAuthStateChanged,
+    setPersistence, browserLocalPersistence
+  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
+    from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // ✅ 로그인 상태가 새로고침/리디렉션 후에도 안정적으로 유지되도록
+  await setPersistence(auth, browserLocalPersistence);
+
+  const provider = new GoogleAuthProvider();
+  // ✅ 계정선택 화면이 자주 안 뜨는 경우 강제
+  provider.setCustomParameters({ prompt: "select_account" });
+
+  // ===== Toast =====
+  window.hideToast = () => document.getElementById("toast").classList.remove("show");
+  function toast(msg){
+    const t = document.getElementById("toast");
+    document.getElementById("toast-msg").textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2600);
+  }
+
+  // ===== Utils (theme) =====
+  function clamp(n,min,max){ return Math.max(min, Math.min(max,n)); }
+  function hexToRgb(hex){
+    const h = (hex||"").replace("#","").trim();
+    if (h.length===3){
+      return { r:parseInt(h[0]+h[0],16), g:parseInt(h[1]+h[1],16), b:parseInt(h[2]+h[2],16) };
+    }
+    if (h.length===6){
+      return { r:parseInt(h.slice(0,2),16), g:parseInt(h.slice(2,4),16), b:parseInt(h.slice(4,6),16) };
+    }
+    return {r:0,g:0,b:0};
+  }
+  function hexToRgba(hex, a){
+    const {r,g,b} = hexToRgb(hex);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+  function rgbToHex(r,g,b){
+    const to = (v)=> clamp(Math.round(v),0,255).toString(16).padStart(2,"0");
+    return `#${to(r)}${to(g)}${to(b)}`;
+  }
+  function mix(c1,c2,t){
+    const a = hexToRgb(c1), b = hexToRgb(c2);
+    return rgbToHex(a.r + (b.r-a.r)*t, a.g + (b.g-a.g)*t, a.b + (b.b-a.b)*t);
+  }
+  function luma(hex){
+    const {r,g,b} = hexToRgb(hex);
+    const y = (0.2126*r + 0.7152*g + 0.0722*b)/255;
+    return Math.round(y*100);
+  }
+  function applyTheme(t){
+    const accent  = t.accent  || "#d4941e";
+    const bg      = t.bg      || "#f5f7fb";
+    const surface = t.surface || "#ffffff";
+    const text    = t.text    || "#1a1f2b";
+
+    document.documentElement.style.setProperty("--accent", accent);
+    document.documentElement.style.setProperty("--accent2", accent);
+    document.documentElement.style.setProperty("--accent-bg", hexToRgba(accent, 0.12));
+
+    document.documentElement.style.setProperty("--bg", bg);
+    document.documentElement.style.setProperty("--surface", surface);
+    document.documentElement.style.setProperty("--panel", surface);
+    document.documentElement.style.setProperty("--surface2", mix(surface, "#e9edf5", 0.55));
+
+    document.documentElement.style.setProperty("--text", text);
+    document.documentElement.style.setProperty("--text2", mix(text, "#8892a3", 0.55));
+    document.documentElement.style.setProperty("--text3", mix(text, "#a7b0c2", 0.72));
+
+    document.documentElement.style.setProperty("--border",  mix(bg, "#cfd6e4", 0.45));
+    document.documentElement.style.setProperty("--border2", mix(bg, "#bfc8da", 0.45));
+  }
+
+  // ===== Theme storage =====
+  const THEME_KEY_LOCAL = "memopad_theme_v2";
+  const presets = [
+    { name:"밝은(기본)", accent:"#d4941e", bg:"#f5f7fb", surface:"#ffffff", text:"#1a1f2b" },
+    { name:"스카이",     accent:"#3b82f6", bg:"#f2f7ff", surface:"#ffffff", text:"#162033" },
+    { name:"민트",       accent:"#10b981", bg:"#f2fbf7", surface:"#ffffff", text:"#14251f" },
+    { name:"로즈",       accent:"#e11d48", bg:"#fff1f5", surface:"#ffffff", text:"#2b1520" },
+    { name:"라벤더",     accent:"#8b5cf6", bg:"#f7f3ff", surface:"#ffffff", text:"#1f1833" },
+    { name:"다크",       accent:"#f0b340", bg:"#0f0e0c", surface:"#1a1916", text:"#e8e2d9" },
+  ];
+  function loadThemeLocal(){
+    try{ const raw = localStorage.getItem(THEME_KEY_LOCAL); return raw ? JSON.parse(raw) : null; }
+    catch{ return null; }
+  }
+  function saveThemeLocal(theme){ localStorage.setItem(THEME_KEY_LOCAL, JSON.stringify(theme)); }
+
+  function userThemeRef(uid){ return doc(db, "users", uid, "settings", "theme"); }
+  async function loadThemeCloud(uid){
+    const snap = await getDoc(userThemeRef(uid));
+    if (!snap.exists()) return null;
+    const d = snap.data() || {};
+    return d.theme || null;
+  }
+  async function saveThemeCloud(uid, theme){
+    await setDoc(userThemeRef(uid), { theme, updatedAtServer: serverTimestamp(), updatedAt: Date.now() }, { merge:true });
+  }
+
+  // ===== Theme modal UI =====
+  window.openTheme = () => {
+    renderPresets();
+    const cur = loadThemeLocal() || presets[0];
+    document.getElementById("pick-accent").value = cur.accent || "#d4941e";
+    document.getElementById("pick-text").value   = cur.text   || "#1a1f2b";
+    document.getElementById("pick-surface").value= cur.surface|| "#ffffff";
+    document.getElementById("pick-bright").value = luma(cur.bg || "#f5f7fb");
+    document.getElementById("theme-backdrop").classList.add("show");
+    document.getElementById("theme-modal").classList.add("show");
+  };
+  window.closeTheme = () => {
+    document.getElementById("theme-backdrop").classList.remove("show");
+    document.getElementById("theme-modal").classList.remove("show");
+  };
+
+  function renderPresets(){
+    const wrap = document.getElementById("preset-row");
+    wrap.innerHTML = "";
+    presets.forEach(p=>{
+      const el = document.createElement("div");
+      el.className = "preset";
+      el.innerHTML = `
+        <div class="name">${p.name}</div>
+        <div class="chips">
+          <div class="chip" style="background:${p.bg}"></div>
+          <div class="chip" style="background:${p.surface}"></div>
+          <div class="chip" style="background:${p.accent}"></div>
+          <div class="chip" style="background:${p.text}"></div>
+        </div>`;
+      el.onclick = () => {
+        const theme = { ...p };
+        saveThemeLocal(theme);
+        applyTheme(theme);
+        document.getElementById("pick-accent").value = theme.accent;
+        document.getElementById("pick-text").value = theme.text;
+        document.getElementById("pick-surface").value = theme.surface;
+        document.getElementById("pick-bright").value = luma(theme.bg);
+      };
+      wrap.appendChild(el);
     });
-    video.srcObject = stream;
-    await video.play();
-    startSection.style.display = 'none';
-    shutterBtn.disabled = false;
-    statusText.textContent = '준비 완료 — 셔터를 눌러 촬영을 시작하세요';
-    setStatus('READY');
-  } catch(e) {
-    statusText.textContent = '카메라 접근 실패: ' + e.message;
-  }
-});
-
-shutterBtn.addEventListener('click', () => {
-  if (isRecording) return;
-  startCapture();
-});
-
-async function startCapture() {
-  isRecording = true;
-  shutterBtn.disabled = true;
-  shutterBtn.classList.add('recording');
-  downloadSection.style.display = 'none';
-  resultWrap.style.display = 'none';
-  capturedFrames = [];
-  framesStrip.innerHTML = '';
-  framesStripWrap.style.display = 'none';
-
-  // COUNTDOWN
-  await countdown();
-
-  // ⭐ 수업용 고정: 5초 / 10fps = 총 50프레임 (UI는 그대로)
-  const duration = 5000; // 5 seconds
-  const totalFrames = 50;
-  frameSlider.value = totalFrames;
-  frameVal.textContent = totalFrames;
-  frameTotal.textContent = totalFrames;
-
-  const interval = duration / totalFrames;
-  frameTotal.textContent = totalFrames;
-  frameNum.textContent = '00';
-
-  hudLabel.textContent = 'REC';
-  recDot.classList.add('active');
-  setStatus('촬영 중...');
-
-  const startTime = Date.now();
-
-  for (let i = 0; i < totalFrames; i++) {
-    if (!isRecording) break;
-
-    const frameCanvas = document.createElement('canvas');
-    frameCanvas.width = video.videoWidth || 1280;
-    frameCanvas.height = video.videoHeight || 720;
-    const ctx = frameCanvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
-    capturedFrames.push(frameCanvas);
-
-    // Flash
-    triggerFlash();
-
-    const progress = ((i + 1) / totalFrames) * 100;
-    progressFill.style.width = progress + '%';
-    frameNum.textContent = String(i + 1).padStart(2, '0');
-
-    const elapsed = Date.now() - startTime;
-    const remaining = Math.max(0, (duration - elapsed) / 1000);
-    timeLabel.textContent = remaining.toFixed(1) + 's';
-
-    // Wait for next frame
-    const nextTime = startTime + (i + 1) * interval;
-    const waitMs = nextTime - Date.now();
-    if (waitMs > 0) await sleep(waitMs);
   }
 
-  hudLabel.textContent = 'PROCESSING';
-  recDot.classList.remove('active');
-  setStatus('합성 처리 중...');
-  await sleep(50);
+  function liveApplyFromPickers(){
+    const accent = document.getElementById("pick-accent").value;
+    const text   = document.getElementById("pick-text").value;
+    const surface= document.getElementById("pick-surface").value;
+    const bright = parseInt(document.getElementById("pick-bright").value || "70", 10);
+    const base = mix("#0b0f1a", "#ffffff", bright/100);
+    const bg   = mix(base, surface, 0.12);
+    const theme = { accent, text, surface, bg };
+    applyTheme(theme);
+    return theme;
+  }
 
-  compositeFrames();
-  showFramesStrip();
+  document.getElementById("pick-accent").addEventListener("input", liveApplyFromPickers);
+  document.getElementById("pick-text").addEventListener("input", liveApplyFromPickers);
+  document.getElementById("pick-surface").addEventListener("input", liveApplyFromPickers);
+  document.getElementById("pick-bright").addEventListener("input", liveApplyFromPickers);
 
-  isRecording = false;
-  shutterBtn.disabled = false;
-  shutterBtn.classList.remove('recording');
-  progressFill.style.width = '100%';
-  setTimeout(() => { progressFill.style.width = '0%'; }, 1000);
-  hudLabel.textContent = 'DONE';
-  timeLabel.textContent = '0.0s';
-  setStatus('완성!');
-  downloadSection.style.display = 'flex';
-}
+  window.resetTheme = () => {
+    const theme = presets[0];
+    saveThemeLocal(theme);
+    applyTheme(theme);
+    toast("테마를 초기화했어요");
+  };
 
-function countdown() {
-  return new Promise(resolve => {
-    countdownOverlay.style.display = 'flex';
-    let count = 3;
-    countdownNum.textContent = count;
-    countdownNum.style.animation = 'none';
-    countdownNum.offsetHeight;
-    countdownNum.style.animation = 'countPop 0.8s ease-out forwards';
+  // ===== Auth =====
+  let currentUser = null;
 
-    const tick = setInterval(() => {
-      count--;
-      if (count <= 0) {
-        clearInterval(tick);
-        countdownOverlay.style.display = 'none';
-        resolve();
-      } else {
-        countdownNum.textContent = count;
-        countdownNum.style.animation = 'none';
-        countdownNum.offsetHeight;
-        countdownNum.style.animation = 'countPop 0.8s ease-out forwards';
+  function refreshAuthUI(){
+    const who = document.getElementById("who");
+    const btn = document.getElementById("btn-auth");
+    if (currentUser) {
+      who.textContent = currentUser.displayName || currentUser.email || "로그인됨";
+      btn.textContent = "로그아웃";
+    } else {
+      who.textContent = "로그인 필요";
+      btn.textContent = "로그인";
+    }
+  }
+
+  // ✅ 버튼 클릭 즉시 반응하도록 (로그아웃은 즉시 UI도 바꾸고, 이후 onAuthStateChanged가 확정)
+  window.handleAuth = async () => {
+    if (currentUser) {
+      try{
+        await signOut(auth);
+        currentUser = null;
+        refreshAuthUI();
+        toast("로그아웃 완료!");
+      }catch(e){
+        console.error(e);
+        toast("로그아웃 실패: " + (e?.code || e?.message || e));
       }
-    }, 900);
+      return;
+    }
+
+    try{
+      toast("로그인 창 여는 중…");
+      await signInWithRedirect(auth, provider);
+    }catch(e){
+      console.error(e);
+      toast("로그인 시작 실패: " + (e?.code || e?.message || e));
+    }
+  };
+
+  // ✅ 리디렉션 복귀 직후에도 UI가 안 바뀌는 케이스를 대비해, 여기서도 한 번 반영
+  try{
+    const result = await getRedirectResult(auth);
+    if (result?.user) {
+      currentUser = result.user;
+      refreshAuthUI();
+      toast("로그인 완료!");
+    }
+  }catch(e){
+    console.error(e);
+    if (e?.code) toast("로그인 처리 실패: " + e.code);
+  }
+
+  // ===== Planner core =====
+  const DAYS_KO = ['일','월','화','수','목','금','토'];
+  const MONTHS  = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const PREFIX  = 'memopad2_';
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  let calYear  = today.getFullYear();
+  let calMonth = today.getMonth();
+  let selKey   = null;
+  let tasks    = [];
+  let flagImportant = false;
+  let saveTimer;
+  let isDirty = false;
+
+  function dateKey(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+  function todayKey(){ return dateKey(today.getFullYear(), today.getMonth(), today.getDate()); }
+  function localKey(key){ return PREFIX + key; }
+  function dayDocRef(uid, key){ return doc(db, "users", uid, "days", key); }
+
+  function loadLocalDay(key){
+    const raw = localStorage.getItem(localKey(key));
+    if (!raw) return { tasks:[], notes:'', updatedAt:0 };
+    try { return JSON.parse(raw); } catch { return { tasks:[], notes:'', updatedAt:0 }; }
+  }
+  function saveLocalDay(key, data){
+    const payload = { tasks:data.tasks??[], notes:data.notes??'', updatedAt:data.updatedAt??Date.now() };
+    const isEmpty = payload.tasks.length===0 && !(payload.notes||"").trim();
+    if (isEmpty) localStorage.removeItem(localKey(key));
+    else localStorage.setItem(localKey(key), JSON.stringify(payload));
+  }
+
+  async function loadCloudDay(uid,key){
+    const snap = await getDoc(dayDocRef(uid,key));
+    if (!snap.exists()) return { tasks:[], notes:'', updatedAt:0 };
+    const data = snap.data()||{};
+    return {
+      tasks: Array.isArray(data.tasks) ? data.tasks : [],
+      notes: typeof data.notes==="string" ? data.notes : "",
+      updatedAt: typeof data.updatedAt==="number" ? data.updatedAt : 0
+    };
+  }
+  async function saveCloudDay(uid,key,data){
+    await setDoc(dayDocRef(uid,key), {
+      tasks: data.tasks??[],
+      notes: data.notes??"",
+      updatedAt: data.updatedAt??Date.now(),
+      updatedAtServer: serverTimestamp()
+    }, { merge:true });
+  }
+  function mergeDay(local, cloud){
+    const l = local || {tasks:[],notes:'',updatedAt:0};
+    const c = cloud || {tasks:[],notes:'',updatedAt:0};
+    return (c.updatedAt > l.updatedAt) ? c : l;
+  }
+
+  function hasSavedData(key){ return !!localStorage.getItem(localKey(key)); }
+
+  function renderCalendar(){
+    document.getElementById("month-title").textContent = `${calYear}년 ${MONTHS[calMonth]}`;
+    const grid = document.getElementById("cal-grid");
+    grid.innerHTML = "";
+
+    const firstDay = new Date(calYear, calMonth, 1).getDay();
+    const lastDate = new Date(calYear, calMonth+1, 0).getDate();
+    const prevLast = new Date(calYear, calMonth, 0).getDate();
+
+    for (let i=0;i<firstDay;i++){
+      const d = prevLast - firstDay + 1 + i;
+      grid.appendChild(makeCell(calYear, calMonth-1, d, true));
+    }
+    for (let d=1; d<=lastDate; d++){
+      grid.appendChild(makeCell(calYear, calMonth, d, false));
+    }
+    const total = firstDay + lastDate;
+    const remain = total % 7 === 0 ? 0 : 7 - (total % 7);
+    for (let i=1;i<=remain;i++){
+      grid.appendChild(makeCell(calYear, calMonth+1, i, true));
+    }
+  }
+
+  function makeCell(y,m,d,otherMonth){
+    const real = new Date(y,m,d);
+    const ry = real.getFullYear();
+    const rm = real.getMonth();
+    const rd = real.getDate();
+    const key = dateKey(ry,rm,rd);
+    const dow = real.getDay();
+
+    const cell = document.createElement("div");
+    cell.className = "cal-cell" + (otherMonth ? " other-month":"") + (dow===0 ? " sun" : dow===6 ? " sat" : "");
+
+    if (!otherMonth){
+      if (key===todayKey()) cell.classList.add("today");
+      if (key===selKey) cell.classList.add("selected");
+    }
+
+    const num = document.createElement("div");
+    num.className = "cal-num";
+    num.textContent = rd;
+    cell.appendChild(num);
+
+    if (hasSavedData(key) && key!==selKey){
+      const dot = document.createElement("div");
+      dot.className = "cal-dot";
+      cell.appendChild(dot);
+    }
+
+    cell.onclick = ()=> selectDate(ry,rm,rd);
+    return cell;
+  }
+
+  window.changeMonth = (delta)=>{
+    calMonth += delta;
+    if (calMonth<0){ calMonth=11; calYear--; }
+    if (calMonth>11){ calMonth=0; calYear++; }
+    renderCalendar();
+  };
+
+  async function selectDate(y,m,d){
+    await commitSave();
+    selKey = dateKey(y,m,d);
+    renderCalendar();
+    await openPanel(y,m,d);
+  }
+
+  async function openPanel(y,m,d){
+    const panel = document.getElementById("memo-panel");
+    const content = document.getElementById("memo-content");
+    const noDate = document.getElementById("no-date-msg");
+
+    panel.classList.add("open");
+    noDate.style.display="none";
+    content.style.display="flex";
+
+    const dt = new Date(y,m,d);
+    document.getElementById("hdr-day").textContent = DAYS_KO[dt.getDay()] + "요일";
+    document.getElementById("hdr-num").textContent = d;
+    document.getElementById("hdr-full").textContent = `${y}년 ${m+1}월 ${d}일`;
+
+    const local = loadLocalDay(selKey);
+    tasks = local.tasks || [];
+    document.getElementById("notes-input").value = local.notes || "";
+    isDirty=false;
+    renderTasks(); updateStats();
+
+    if (currentUser){
+      showSaveInd("동기화 중…");
+      try{
+        const cloud = await loadCloudDay(currentUser.uid, selKey);
+        const merged = mergeDay(local, cloud);
+        tasks = merged.tasks || [];
+        document.getElementById("notes-input").value = merged.notes || "";
+        isDirty=false;
+        saveLocalDay(selKey, merged);
+        renderTasks(); updateStats(); renderCalendar();
+        showSaveInd("동기화됨");
+      }catch(e){
+        console.error(e);
+        showSaveInd("오프라인/동기화 실패(로컬 저장됨)");
+      }
+    }
+
+    const now = new Date();
+    document.getElementById("inp-time").value =
+      String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
+    document.getElementById("inp-task").value = "";
+    flagImportant=false;
+    updateFlagBtn();
+    document.getElementById("inp-task").focus();
+  }
+
+  window.closePanel = async ()=>{
+    await commitSave();
+    selKey=null;
+    document.getElementById("memo-panel").classList.remove("open");
+    document.getElementById("memo-content").style.display="none";
+    document.getElementById("no-date-msg").style.display="flex";
+    renderCalendar();
+  };
+
+  function escHtml(s){
+    return (s??"").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  }
+
+  function renderTasks(){
+    const list = document.getElementById("task-list");
+    list.innerHTML = "";
+    if (tasks.length===0){
+      list.innerHTML = `<div class="empty-tasks"><div class="icon">✍️</div><p>아직 할 일이 없습니다.<br>위에서 추가해보세요!</p></div>`;
+      return;
+    }
+
+    const sorted = [...tasks].sort((a,b)=>{
+      if(!a.time && !b.time) return 0;
+      if(!a.time) return 1;
+      if(!b.time) return -1;
+      return a.time.localeCompare(b.time);
+    });
+
+    const groups = {};
+    sorted.forEach(t=>{
+      const g = t.time || "시간 미정";
+      (groups[g] ||= []).push(t);
+    });
+
+    Object.entries(groups).forEach(([grpTime, grpTasks])=>{
+      const grpEl = document.createElement("div");
+      grpEl.className="time-group";
+
+      const lbl = document.createElement("div");
+      lbl.className="time-group-label";
+      lbl.textContent=grpTime;
+      grpEl.appendChild(lbl);
+
+      grpTasks.forEach(t=> grpEl.appendChild(makeTaskEl(t)));
+      list.appendChild(grpEl);
+    });
+  }
+
+  function makeTaskEl(t){
+    const el = document.createElement("div");
+    el.className = "task-item" + (t.done ? " done":"") + (t.important ? " important":"");
+    el.innerHTML = `
+      <div class="task-check" data-action="toggleDone" data-id="${t.id}">${t.done ? "✓":""}</div>
+      <div class="task-body">
+        ${t.time ? `<div class="task-time-tag">${t.time}</div>`:""}
+        <div class="task-text">${escHtml(t.text)}</div>
+      </div>
+      <div class="task-star" data-action="toggleImportant" data-id="${t.id}" title="중요 표시">${t.important ? "⭐":"☆"}</div>
+      <button class="task-del" data-action="deleteTask" data-id="${t.id}" title="삭제">✕</button>`;
+    return el;
+  }
+
+  document.getElementById("task-list").addEventListener("click",(e)=>{
+    const t = e.target.closest("[data-action]");
+    if(!t) return;
+    const action = t.getAttribute("data-action");
+    const id = t.getAttribute("data-id");
+    if(!id) return;
+    if(action==="toggleDone") toggleDone(id);
+    if(action==="toggleImportant") toggleImportant(id);
+    if(action==="deleteTask") deleteTask(id);
   });
-}
 
-function triggerFlash() {
-  flashOverlay.classList.add('flash');
-  setTimeout(() => flashOverlay.classList.remove('flash'), 80);
-}
+  window.addTask = ()=>{
+    const text = document.getElementById("inp-task").value.trim();
+    if(!text){ document.getElementById("inp-task").focus(); return; }
+    const time = document.getElementById("inp-time").value;
 
-function compositeFrames() {
-  if (capturedFrames.length === 0) return;
+    tasks.push({ id: Date.now().toString(), text, time, done:false, important:flagImportant });
+    document.getElementById("inp-task").value="";
+    flagImportant=false;
+    updateFlagBtn();
+    renderTasks(); updateStats(); autoSave();
+  };
 
-  const w = capturedFrames[0].width;
-  const h = capturedFrames[0].height;
-  resultCanvas.width = w;
-  resultCanvas.height = h;
-  const ctx = resultCanvas.getContext('2d');
-
-  const opacity = parseInt(opacitySlider.value) / 100;
-  const mode = blendMode.value;
-
-  // Draw first frame at full opacity as base
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(capturedFrames[0], 0, 0);
-
-  // Composite remaining frames
-  ctx.globalAlpha = opacity;
-  ctx.globalCompositeOperation = mode;
-
-  for (let i = 1; i < capturedFrames.length; i++) {
-    ctx.drawImage(capturedFrames[i], 0, 0);
+  function toggleDone(id){
+    const t = tasks.find(x=>x.id===id);
+    if(t){ t.done=!t.done; renderTasks(); updateStats(); autoSave(); }
+  }
+  function toggleImportant(id){
+    const t = tasks.find(x=>x.id===id);
+    if(t){ t.important=!t.important; renderTasks(); updateStats(); autoSave(); }
+  }
+  function deleteTask(id){
+    tasks = tasks.filter(x=>x.id!==id);
+    renderTasks(); updateStats(); autoSave();
   }
 
-  resultWrap.style.display = 'block';
-  statusRight.textContent = `${capturedFrames.length}프레임 합성`;
-}
-
-function showFramesStrip() {
-  framesStrip.innerHTML = '';
-  const step = Math.max(1, Math.floor(capturedFrames.length / 20));
-  for (let i = 0; i < capturedFrames.length; i += step) {
-    const c = capturedFrames[i];
-    const thumb = document.createElement('canvas');
-    thumb.width = 160;
-    thumb.height = 90;
-    const ctx = thumb.getContext('2d');
-    ctx.drawImage(c, 0, 0, 160, 90);
-    framesStrip.appendChild(thumb);
+  window.toggleFlag = (type)=>{
+    if(type==="important"){ flagImportant=!flagImportant; updateFlagBtn(); }
+  };
+  function updateFlagBtn(){
+    document.getElementById("flag-important").classList.toggle("active", flagImportant);
   }
-  framesStripWrap.style.display = 'block';
-}
 
-downloadBtn.addEventListener('click', () => {
-  const link = document.createElement('a');
-  link.download = `stroboshot_${Date.now()}.png`;
-  link.href = resultCanvas.toDataURL('image/png');
-  link.click();
-});
+  function updateStats(){
+    const total = tasks.length;
+    const done  = tasks.filter(t=>t.done).length;
+    const imp   = tasks.filter(t=>t.important && !t.done).length;
+    const el = document.getElementById("hdr-stats");
+    el.innerHTML = total>0
+      ? `<span class="stat-badge">✅ ${done}/${total} 완료</span>` + (imp>0 ? `<span class="stat-badge">⭐ 중요 ${imp}건</span>`:"")
+      : `<span>할 일을 추가해보세요</span>`;
+  }
 
-retakeBtn.addEventListener('click', () => {
-  resultWrap.style.display = 'none';
-  downloadSection.style.display = 'none';
-  framesStripWrap.style.display = 'none';
-  capturedFrames = [];
-  framesStrip.innerHTML = '';
-  hudLabel.textContent = 'READY';
-  frameNum.textContent = '00';
-  timeLabel.textContent = '5.0s';
-  statusText.textContent = '준비 완료 — 셔터를 눌러 촬영을 시작하세요';
-  statusRight.textContent = '';
-  setStatus('READY');
-});
+  function showSaveInd(msg){
+    const el = document.getElementById("save-ind");
+    el.textContent = msg;
+    setTimeout(()=>{ el.textContent=""; }, 2000);
+  }
 
-function setStatus(msg) {
-  statusText.textContent = msg;
-  const isActive = msg.includes('중') || msg === '완성!';
-  statusText.className = 'status-text' + (isActive ? ' active' : '');
-}
+  function autoSave(){
+    isDirty=true;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async ()=>{
+      if(!selKey) return;
+      const notes = document.getElementById("notes-input").value;
+      const data = { tasks, notes, updatedAt: Date.now() };
 
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
+      saveLocalDay(selKey, data);
+      isDirty=false;
+      renderCalendar();
+
+      if(currentUser){
+        try{
+          showSaveInd("동기화 중…");
+          await saveCloudDay(currentUser.uid, selKey, data);
+          showSaveInd("저장됨(동기화)");
+        }catch(e){
+          console.error(e);
+          showSaveInd("오프라인(로컬 저장됨)");
+        }
+      }else{
+        showSaveInd("저장됨(로컬)");
+      }
+    }, 650);
+  }
+
+  async function commitSave(){
+    if(isDirty && selKey){
+      clearTimeout(saveTimer);
+      const notes = document.getElementById("notes-input").value;
+      const data = { tasks, notes, updatedAt: Date.now() };
+
+      saveLocalDay(selKey, data);
+      isDirty=false;
+      if(currentUser){
+        try{ await saveCloudDay(currentUser.uid, selKey, data); } catch(e){ console.error(e); }
+      }
+    }
+  }
+
+  document.getElementById("inp-task").addEventListener("keydown",(e)=>{ if(e.key==="Enter") window.addTask(); });
+  document.getElementById("notes-input").addEventListener("input", autoSave);
+
+  window.printDay = async ()=>{
+    if(!selKey) return;
+    await commitSave();
+    tasks = [...tasks].sort((a,b)=>{
+      if(!a.time && !b.time) return 0;
+      if(!a.time) return 1;
+      if(!b.time) return -1;
+      return a.time.localeCompare(b.time);
+    });
+    renderTasks(); updateStats();
+    toast("인쇄 창을 여는 중… (PDF 저장 가능)");
+    setTimeout(()=> window.print(), 250);
+  };
+
+  // ===== 로그인 상태 변화(최종 결정권) =====
+  onAuthStateChanged(auth, async (user)=>{
+    currentUser = user || null;
+    refreshAuthUI();
+
+    // 테마: 로그인하면 계정 테마를 불러와 적용(있으면)
+    if(currentUser){
+      try{
+        const cloudTheme = await loadThemeCloud(currentUser.uid);
+        if(cloudTheme){
+          saveThemeLocal(cloudTheme);
+          applyTheme(cloudTheme);
+        }
+      }catch(e){ console.error(e); }
+    }
+
+    // 선택중인 날짜가 있으면 동기화 갱신
+    if(currentUser && selKey){
+      try{
+        const local = loadLocalDay(selKey);
+        const cloud = await loadCloudDay(currentUser.uid, selKey);
+        const merged = mergeDay(local, cloud);
+        saveLocalDay(selKey, merged);
+      }catch(e){ console.error(e); }
+      renderCalendar();
+    }
+  });
+
+  // ===== init =====
+  const localTheme = loadThemeLocal();
+  applyTheme(localTheme || presets[0]);
+
+  renderCalendar();
+  await selectDate(today.getFullYear(), today.getMonth(), today.getDate());
 </script>
 </body>
 </html>
