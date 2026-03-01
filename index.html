@@ -600,6 +600,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Noto S
       who.textContent = "로그인 필요";
       btn.textContent = "로그인";
     }
+    console.log("AUTH UI 갱신:", currentUser);
   }
 
   // ✅ 버튼 클릭 즉시 반응하도록 (로그아웃은 즉시 UI도 바꾸고, 이후 onAuthStateChanged가 확정)
@@ -990,10 +991,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Noto S
   };
 
   // ===== 로그인 상태 변화(최종 결정권) =====
-  onAuthStateChanged(auth, async (user)=>{
-    currentUser = user || null;
-    refreshAuthUI();
+onAuthStateChanged(auth, async (user)=>{
 
+  console.log("Auth 상태 변경 감지:", user);
+
+  currentUser = user || null;
+
+  // ✅ redirect 로그인 안정화 (핵심)
+  setTimeout(() => {
+    refreshAuthUI();
+  }, 50);
+
+});
     // 테마: 로그인하면 계정 테마를 불러와 적용(있으면)
     if(currentUser){
       try{
